@@ -57,6 +57,7 @@ func follow(l string, names map[string]*FileInfo) error {
 		if err != nil {
 			return err
 		}
+		next = filepath.Join(filepath.Dir(l), next)
 		// It may be a relative link, so we need to
 		// make it abs.
 		if filepath.IsAbs(next) {
@@ -74,12 +75,12 @@ func follow(l string, names map[string]*FileInfo) error {
 // 'not a dynamic executable'.
 func runinterp(interp, file string) ([]string, error) {
 	var names []string
-	o, err := exec.Command(interp, "--list", file).Output()
+	o, err := exec.Command(interp, file).Output()
 	if err != nil {
 		return nil, err
 	}
 	for _, p := range strings.Split(string(o), "\n") {
-		f := strings.Split(p, " ")
+		f := strings.Split(strings.TrimSpace(p), " ")
 		if len(f) < 3 {
 			continue
 		}
@@ -153,7 +154,7 @@ func GetInterp(file string) (string, error) {
 // read it, or we are not able to run its interpreter.
 //
 // It's not an error for a file to not be an ELF.
-func Ldd(names []string) ([]*FileInfo, error) {
+func Ldd(names []string, lddBase, lddBinary string) ([]*FileInfo, error) {
 	var (
 		list    = make(map[string]*FileInfo)
 		interps = make(map[string]*FileInfo)
@@ -165,13 +166,22 @@ func Ldd(names []string) ([]*FileInfo, error) {
 		}
 	}
 	for _, n := range names {
-		interp, err := GetInterp(n)
-		if err != nil {
-			return nil, err
-		}
+		interp := lddBinary
+
 		if interp == "" {
-			continue
+			binInterp, err := GetInterp(n)
+
+			if err != nil {
+				return nil, err
+			}
+
+			if binInterp == "" {
+				continue
+			}
+
+			interp = binInterp
 		}
+
 		// We could just append the interp but people
 		// expect to see that first.
 		if interps[interp] == nil {
@@ -186,7 +196,8 @@ func Ldd(names []string) ([]*FileInfo, error) {
 			return nil, err
 		}
 		for i := range n {
-			if err := follow(n[i], list); err != nil {
+			next := filepath.Join(lddBase, n[i])
+			if err := follow(next, list); err != nil {
 				log.Fatalf("ldd: %v", err)
 			}
 		}
@@ -204,9 +215,9 @@ func Ldd(names []string) ([]*FileInfo, error) {
 }
 
 // List returns the dependency file paths of files in names.
-func List(names []string) ([]string, error) {
+func List(names []string, lddBase, lddBinary string) ([]string, error) {
 	var list []string
-	l, err := Ldd(names)
+	l, err := Ldd(names, lddBase, lddBinary)
 	if err != nil {
 		return nil, err
 	}

@@ -159,6 +159,9 @@ type Opts struct {
 	//   - "/home/foo" is equivalent to "/home/foo:home/foo".
 	ExtraFiles []string
 
+	LddBase   string
+	LddBinary string
+
 	// If true, do not use ldd to pick up dependencies from local machine for
 	// ExtraFiles. Useful if you have all deps revision controlled and wish to
 	// ensure builds are repeatable, and/or if the local machine's binaries use
@@ -266,7 +269,7 @@ func CreateInitramfs(logger ulog.Logger, opts Opts) error {
 		BaseArchive:     opts.BaseArchive,
 		UseExistingInit: opts.UseExistingInit,
 	}
-	if err := ParseExtraFiles(logger, archive.Files, opts.ExtraFiles, !opts.SkipLDD); err != nil {
+	if err := ParseExtraFiles(logger, archive.Files, opts.ExtraFiles, !opts.SkipLDD, opts.LddBase, opts.LddBinary); err != nil {
 		return err
 	}
 
@@ -443,7 +446,9 @@ func ResolvePackagePaths(logger ulog.Logger, env golang.Environ, pkgs []string) 
 //   - "/home/foo" is equivalent to "/home/foo:home/foo".
 //
 // ParseExtraFiles will also add ldd-listed dependencies if lddDeps is true.
-func ParseExtraFiles(logger ulog.Logger, archive *initramfs.Files, extraFiles []string, lddDeps bool) error {
+func ParseExtraFiles(logger ulog.Logger, archive *initramfs.Files, extraFiles []string, lddDeps bool, lddBase string, lddBinary string) error {
+	lddBase = strings.TrimRight(lddBase, "/")
+
 	var err error
 	// Add files from command line.
 	for _, file := range extraFiles {
@@ -479,7 +484,7 @@ func ParseExtraFiles(logger ulog.Logger, archive *initramfs.Files, extraFiles []
 		if lddDeps {
 			// Pull dependencies in the case of binaries. If `path` is not
 			// a binary, `libs` will just be empty.
-			libs, err := ldd.List([]string{src})
+			libs, err := ldd.List([]string{src}, lddBase, lddBinary)
 			if err != nil {
 				logger.Printf("WARNING: couldn't add ldd dependencies for %q: %v", file, err)
 				continue
@@ -491,7 +496,14 @@ func ParseExtraFiles(logger ulog.Logger, archive *initramfs.Files, extraFiles []
 				if lib == src {
 					continue
 				}
-				if err := archive.AddFileNoFollow(lib, lib[1:]); err != nil {
+
+				relativeLib := lib
+
+				if strings.HasPrefix(lib, relativeLib) {
+					relativeLib = strings.TrimPrefix(lib, lddBase)
+				}
+
+				if err := archive.AddFileNoFollow(lib, relativeLib[1:]); err != nil {
 					logger.Printf("WARNING: couldn't add ldd dependencies for %q: %v", lib, err)
 				}
 			}

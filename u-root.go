@@ -45,6 +45,8 @@ var (
 	fourbins                                *bool
 	noCommands                              *bool
 	extraFiles                              multiFlag
+	lddBase                                 *string
+	lddBinary                               *string
 	noStrip                                 *bool
 	statsOutputPath                         *string
 	statsLabel                              *string
@@ -76,6 +78,9 @@ func init() {
 	noCommands = flag.Bool("nocmd", false, "Build no Go commands; initramfs only")
 
 	flag.Var(&extraFiles, "files", "Additional files, directories, and binaries (with their ldd dependencies) to add to archive. Can be speficified multiple times.")
+
+	lddBase = flag.String("ldd-base", "", "Base directory offset when adding ldd dependencies.")
+	lddBinary = flag.String("ldd-binary", "", "ldd binary to run against dependencies.")
 
 	noStrip = flag.Bool("no-strip", false, "Build unstripped binaries")
 
@@ -309,6 +314,8 @@ func Main() error {
 		Commands:        c,
 		TempDir:         tempDir,
 		ExtraFiles:      extraFiles,
+		LddBase:         *lddBase,
+		LddBinary:       *lddBinary,
 		OutputFile:      w,
 		BaseArchive:     baseFile,
 		UseExistingInit: *useExistingInit,
