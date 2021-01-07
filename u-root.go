@@ -50,6 +50,7 @@ var (
 	noStrip                                 *bool
 	statsOutputPath                         *string
 	statsLabel                              *string
+	shellbang                               *bool
 )
 
 func init() {
@@ -83,6 +84,7 @@ func init() {
 	lddBinary = flag.String("ldd-binary", "", "ldd binary to run against dependencies.")
 
 	noStrip = flag.Bool("no-strip", false, "Build unstripped binaries")
+	shellbang = flag.Bool("shellbang", false, "Use #! instead of symlinks for busybox")
 
 	statsOutputPath = flag.String("stats-output-path", "", "Write build stats to this file (JSON)")
 
@@ -268,7 +270,7 @@ func Main() error {
 		var b builder.Builder
 		switch *build {
 		case "bb":
-			b = builder.BBBuilder{}
+			b = builder.BBBuilder{ShellBang: *shellbang}
 		case "binary":
 			b = builder.BinaryBuilder{}
 		case "source":
